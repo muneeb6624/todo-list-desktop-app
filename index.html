@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Electron Todo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-purple-600 to-blue-500 dark:from-gray-800 dark:to-gray-900 p-8">
+    <div class="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+        <!-- Header -->
+        <div
+            class="bg-gradient-to-r from-purple-500 to-pink-500 dark:from-gray-700 dark:to-gray-600 p-6 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-white text-center">
+                <i class="fas fa-check-circle mr-2"></i>Todo List
+            </h1>
+
+            <button id="darkModeToggle" class="text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-moon"></i>
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="p-6 dark:bg-gray-800">
+            <!-- Input Form -->
+            <form id="todoForm" class="mb-6">
+                <div class="flex gap-2">
+                    <input id="taskInput" type="text" spellcheck="true" lang="en"
+                        class="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
+                        placeholder="What needs to be done?" />
+                    <button type="submit"
+                        class="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>Add
+                    </button>
+                </div>
+            </form>
+
+            <!-- Filters -->
+            <div class="flex gap-2 mb-4">
+                <button id="filterAll" class="filter-btn px-4 py-2 rounded-lg bg-purple-500 text-white">All</button>
+                <button id="filterActive"
+                    class="filter-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Active</button>
+                <button id="filterCompleted"
+                    class="filter-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Completed</button>
+            </div>
+
+            <!-- Todo List -->
+            <ul id="taskList" class="space-y-2"></ul>
+
+            <!-- Stats -->
+            <div class="mt-4 text-sm text-gray-600 flex justify-between items-center">
+                <span id="taskCount">0 items left</span>
+                <button id="clearCompleted" class="text-purple-500 hover:text-purple-700">Clear completed</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let todos = [];
+        let filter = 'all';
+
+        // Load todos when the app starts
+        window.todoAPI.loadTodos().then(loadedTodos => {
+            todos = loadedTodos;
+            renderTodos();
+        });
+
+        // Form submission
+        document.getElementById('todoForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('taskInput');
+            const text = input.value.trim();
+
+            if (text) {
+                todos.push({ id: Date.now(), text, completed: false });
+                input.value = '';
+                saveTodosAndRender();
+            }
+        });
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('bg-purple-500', 'text-white');
+                    b.classList.add('bg-gray-200', 'text-gray-700');
+                });
+                e.target.classList.remove('bg-gray-200', 'text-gray-700');
+                e.target.classList.add('bg-purple-500', 'text-white');
+                filter = e.target.id.replace('filter', '').toLowerCase();
+                renderTodos();
+            });
+        });
+
+        // Clear completed
+        document.getElementById('clearCompleted').addEventListener('click', () => {
+            todos = todos.filter(todo => !todo.completed);
+            saveTodosAndRender();
+        });
+
+        function renderTodos() {
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+
+            const filteredTodos = todos.filter(todo => {
+                if (filter === 'active') return !todo.completed;
+                if (filter === 'completed') return todo.completed;
+                return true;
+            });
+
+            filteredTodos.forEach(todo => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = todo.completed;
+                checkbox.className = 'w-5 h-5 text-purple-500 rounded focus:ring-purple-500';
+                checkbox.addEventListener('change', () => {
+                    todo.completed = checkbox.checked;
+                    saveTodosAndRender();
+                });
+
+                const span = document.createElement('span');
+                span.textContent = todo.text;
+                span.className = todo.completed ? 'flex-1 line-through text-gray-500' : 'flex-1';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '<i class="fas fa-trash text-red-500 hover:text-red-700"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    todos = todos.filter(t => t.id !== todo.id);
+                    saveTodosAndRender();
+                });
+
+                li.appendChild(checkbox);
+                li.appendChild(span);
+                li.appendChild(deleteBtn);
+                list.appendChild(li);
+            });
+
+            // Update counter
+            const activeCount = todos.filter(todo => !todo.completed).length;
+            document.getElementById('taskCount').textContent = `${activeCount} item${activeCount === 1 ? '' : 's'} left`;
+        }
+
+
+        function saveTodosAndRender() {
+            window.todoAPI.saveTodos(todos).then(() => renderTodos());
+        }
+
+        window.todoAPI.getDarkMode().then(isDark => {
+            if (isDark) {
+                document.documentElement.classList.add('dark')
+            }
+        })
+
+        // Add dark mode toggle handler
+        document.getElementById('darkModeToggle').addEventListener('click', () => {
+            window.todoAPI.toggleDarkMode()
+        })
+
+    </script>
+</body>
+
+</html>
